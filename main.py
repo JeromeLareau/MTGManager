@@ -1,29 +1,31 @@
-from scanner.ocr import retry_with_adaptive_threshold, retry_with_gray_filter, scan_card_name
-from scanner.scryfall import get_card_by_fuzzy_name
+import os
+from queue import Queue
+import threading
+
+from constant import TEMP_DIR
+from scanner.camera_capture import camera_loop
+from scanner.processing import process_cards
+
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 if __name__ == "__main__":
-    image_path = "card.jpg"  # <-- put an MTG card image here
+    card_queue = Queue(maxsize=1)
+    stop_event = threading.Event()
 
-    ocr_name = scan_card_name(image_path)
-    print("OCR RESULT:", ocr_name)
+    camera_thread = threading.Thread(
+        target=camera_loop,
+        args=(card_queue, stop_event),
+        daemon=True
+    )
 
-    card = get_card_by_fuzzy_name(ocr_name)
-    if card is None:
-        print("Retrying with grayscale filter...")
-        ocr_name = retry_with_gray_filter()
-        card = get_card_by_fuzzy_name(ocr_name)
-        
-    if card is None:
-        print("Retrying with adaptive threshold...")
-        ocr_name = retry_with_adaptive_threshold()
-        card = get_card_by_fuzzy_name(ocr_name)
+    processing_thread = threading.Thread(
+        target=process_cards,
+        args=(card_queue, stop_event),
+        daemon=True
+    )
 
-    if card is None:
-        print("No card found on Scryfall")
-    else:
-        print("✅ MATCH FOUND")
-        print("Name:", card["name"])
-        print("Mana cost:", card.get("mana_cost"))
-        print("Type:", card.get("type_line"))
-        print("Set:", card["set_name"])
-        print("Rarity:", card["rarity"])
+    camera_thread.start()
+    processing_thread.start()
+
+    camera_thread.join()
+    stop_event.set()
