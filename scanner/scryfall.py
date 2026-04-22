@@ -1,6 +1,5 @@
 import enum
-from time import time
-
+import time
 import requests
 
 SCRYFALL_NAMED_URL = "https://api.scryfall.com/cards/named"
