@@ -10,14 +10,24 @@ class CameraWorker(QThread):
         super().__init__()
         self.scan_controller = scan_controller
         self.running = True
+        self.active = False
+        self.cap = None
 
     def run(self):
-        cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
-            raise RuntimeError("Could not open camera")
-
         while self.running:
-            ret, frame = cap.read()
+            if not self.active:
+                self.msleep(50)
+                continue
+            
+            if self.cap is None:
+                self.cap = cv2.VideoCapture(0)
+                if not self.cap.isOpened():
+                    print("Could not open camera")
+                    self.cap = None
+                    self.msleep(500)
+                    continue
+
+            ret, frame = self.cap.read()
             if not ret:
                 continue
 
@@ -35,7 +45,17 @@ class CameraWorker(QThread):
             # always emit the preview frame
             self.frame_ready.emit(display)
 
-        cap.release()
+        if self.cap is not None:
+            self.cap.release()
 
     def stop(self):
         self.running = False
+        
+    def start_camera(self):
+        self.active = True
+
+    def stop_camera(self):
+        self.active = False
+        if self.cap is not None:
+            self.cap.release()
+            self.cap = None
