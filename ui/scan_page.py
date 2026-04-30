@@ -3,6 +3,7 @@ import cv2
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QPushButton, QWidget, QVBoxLayout
 from PySide6.QtGui import QImage, QPixmap, Qt
 from PySide6.QtCore import QThread
+from db.database import add_card_to_collection
 from workers.camera_worker import CameraWorker
 from workers.processing_worker import ProcessingWorker
 from workers.scanner_controller import ScanController
@@ -12,6 +13,7 @@ class ScanPage(QWidget):
         super().__init__()
         self.setWindowTitle("MTG Manager")
         self.resize(1000, 700)
+        self.current_card = None
 
         # Left side: camera preview
         self.camera_preview = QLabel("Camera")
@@ -31,6 +33,11 @@ class ScanPage(QWidget):
         self.card_type = QLabel("")
         self.card_set = QLabel("")
         self.add_button = QPushButton("Add to collection")
+        self.add_button.clicked.connect(
+            lambda: add_card_to_collection(self.current_card['id'], 1)
+        )
+
+        self.add_button.setEnabled(False)
 
         right_layout = QVBoxLayout()
         right_layout.addWidget(self.card_image)
@@ -76,6 +83,8 @@ class ScanPage(QWidget):
         self.card_name.setText(card['name'])
         self.card_type.setText(card['type_line'])
         self.card_set.setText(card['set_name'])
+        self.current_card = card
+        self.add_button.setEnabled(True)
         
         if image_data:
             pixmap = QPixmap()

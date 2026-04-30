@@ -2,10 +2,13 @@ from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
+    QTableWidget,
+    QTableWidgetItem,
 )
 from PySide6.QtCore import Qt
+
+from db.database import load_collection
+
 
 class CollectionPage(QWidget):
     def __init__(self):
@@ -15,49 +18,70 @@ class CollectionPage(QWidget):
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText("Search collection…")
 
-        # --- Card list ---
-        self.list_widget = QListWidget()
-        self.list_widget.setSelectionMode(QListWidget.SingleSelection)
+        # --- Table ---
+        self.table = QTableWidget()
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels([
+            "Name",
+            "Set",
+            "Normal",
+            "Foil",
+            "Price"
+        ])
+
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SingleSelection)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setSortingEnabled(True)
+        self.table.horizontalHeader().setStretchLastSection(True)
 
         # Layout
         layout = QVBoxLayout()
         layout.addWidget(self.search_bar)
-        layout.addWidget(self.list_widget)
+        layout.addWidget(self.table)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
         self.setLayout(layout)
 
-        # Internal data (V1: simple list)
-        self.cards = []  # list of dicts or strings
-
         # Signals
-        self.search_bar.textChanged.connect(self.filter_list)
+        self.search_bar.textChanged.connect(self.filter_rows)
 
-    # --- Public API ---
+        # Load initial data
+        self.reload()
 
-    def set_cards(self, cards):
-        """
-        cards: list of dicts, e.g.
-        { "name": "Sol Ring", "set": "Commander Masters" }
-        """
-        self.cards = cards
-        self.refresh_list()
+    # ✅ Public API
+    def reload(self):
+        rows = load_collection()
+        self.populate(rows)
 
-    def add_card(self, card):
-        self.cards.append(card)
-        self.refresh_list()
+    # --- Internal helpers ---
 
-    # --- UI logic ---
+    def populate(self, rows):
+        self.table.setRowCount(len(rows))
 
-    def refresh_list(self):
-        self.list_widget.clear()
+        for row_idx, row in enumerate(rows):
+            self.table.setItem(row_idx, 0, QTableWidgetItem(row["name"]))
+            self.table.setItem(row_idx, 1, QTableWidgetItem(row["set_name"]))
+            self.table.setItem(row_idx, 2, QTableWidgetItem(str(row["qty_normal"])))
+            self.table.setItem(row_idx, 3, QTableWidgetItem(str(row["qty_foil"])))
+            self.table.setItem(row_idx, 4, QTableWidgetItem(str(row["price_normal"])))
 
-        for card in self.cards:
-            item = QListWidgetItem(card["name"])
-            self.list_widget.addItem(item)
+            # Align quantities
+            self.table.item(row_idx, 2).setTextAlignment(Qt.AlignCenter)
+            self.table.item(row_idx, 3).setTextAlignment(Qt.AlignCenter)
+            self.table.item(row_idx, 4).setTextAlignment(Qt.AlignCenter)
 
-    def filter_list(self, text):
+    def filter_rows(self, text):
         text = text.lower()
 
-        for i in range(self.list_widget.count()):
-            item = self.list_widget.item(i)
-            visible = text in item.text().lower()
-            item.setHidden(not visible)
+        for row in range(self.table.rowCount()):
+            name = self.table.item(row, 0).text().lower()
+            set_name = self.table.item(row, 1).text().lower()
+
+            visible = text in name or text in set_name
+            self.table.setRowHidden(row, not visible)
+            
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.reload()

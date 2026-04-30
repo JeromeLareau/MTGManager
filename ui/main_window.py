@@ -74,10 +74,5 @@ class MainWindow(QWidget):
             case NavigationPages.Scanner:
                 self.stack.setCurrentIndex(1)
             case NavigationPages.Collection:
-                self.page_collection.set_cards([
-                    {"name": "Sol Ring", "set": "Commander Masters"},
-                    {"name": "Fabled Passage", "set": "Zendikar Rising"},
-                    {"name": "Solemn Simulacrum", "set": "Commander 2019"},
-                ])
                 self.stack.setCurrentIndex(2)
     
