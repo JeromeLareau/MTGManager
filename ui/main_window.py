@@ -74,5 +74,6 @@ class MainWindow(QWidget):
             case NavigationPages.Scanner:
                 self.stack.setCurrentIndex(1)
             case NavigationPages.Collection:
+                self.page_collection.reload()
                 self.stack.setCurrentIndex(2)
     

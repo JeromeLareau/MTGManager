@@ -161,13 +161,32 @@ def remove_card_from_collection(card_id, qty=1, foil=False):
     conn.commit()
     conn.close()
     
+def update_quantity(card_id: str, field: str, delta: int):
+    """
+    field: 'qty_normal' or 'qty_foil'
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        f"""
+        UPDATE collection
+        SET {field} = MAX({field} + ?, 0)
+        WHERE card_id = ?
+        """,
+        (delta, card_id),
+    )
+
+    conn.commit()
+    conn.close()
+    
 def load_collection():
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
         """
-        SELECT c.name, c.set_name, col.qty_normal, col.qty_foil, c.price_normal
+        SELECT c.id, c.name, c.set_name, col.qty_normal, col.qty_foil, c.price_normal
         FROM collection col
         JOIN cards c ON c.id = col.card_id
         ORDER BY c.name
