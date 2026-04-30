@@ -14,16 +14,16 @@ def process_cards(card_queue, stop_event):
         name = scan_card_name(card_image)
         print("OCR:", name)
 
-        card = safe_scryfall_lookup(endpoint=ScryfallEndpoint.FUZZY, name=name)
+        card = safe_scryfall_lookup(endpoint=ScryfallEndpoint.FUZZY, arg=name)
         if card is None:
             print("Retrying with grayscale filter...")
             ocr_name = retry_with_gray_filter()
-            card = safe_scryfall_lookup(endpoint=ScryfallEndpoint.FUZZY, name=ocr_name)
+            card = safe_scryfall_lookup(endpoint=ScryfallEndpoint.FUZZY, arg=ocr_name)
             
         if card is None:
             print("Retrying with adaptive threshold...")
             ocr_name = retry_with_adaptive_threshold()
-            card = safe_scryfall_lookup(endpoint=ScryfallEndpoint.FUZZY, name=ocr_name)
+            card = safe_scryfall_lookup(endpoint=ScryfallEndpoint.FUZZY, arg=ocr_name)
             
         if card is None:
             print("❌ No card found on Scryfall")
@@ -33,7 +33,7 @@ def process_cards(card_queue, stop_event):
                 print("⚠️ Duplicate card detected, skipping")
                 card_queue.task_done()
                 continue
-            print("✅ Card added to collection:", card["name"])
+            print("✅ Card found:", card["name"])
             last_card_id = card["id"]
 
         card_queue.task_done()

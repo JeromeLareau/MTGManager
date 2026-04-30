@@ -8,7 +8,7 @@ from scanner.ocr import (
 from scanner.scryfall import ScryfallEndpoint, safe_scryfall_lookup
 
 class ProcessingWorker(QObject):
-    card_ready = Signal(dict, bytes)  # card data + image bytes
+    card_ready = Signal(dict)  # card data
     scan_failed = Signal()
 
     def __init__(self, scan_controller):
@@ -24,21 +24,21 @@ class ProcessingWorker(QObject):
 
             card = safe_scryfall_lookup(
                 endpoint=ScryfallEndpoint.FUZZY,
-                name=name
+                arg=name
             )
 
             if card is None:
                 ocr_name = retry_with_gray_filter()
                 card = safe_scryfall_lookup(
                     endpoint=ScryfallEndpoint.FUZZY,
-                    name=ocr_name
+                    arg=ocr_name
                 )
 
             if card is None:
                 ocr_name = retry_with_adaptive_threshold()
                 card = safe_scryfall_lookup(
                     endpoint=ScryfallEndpoint.FUZZY,
-                    name=ocr_name
+                    arg=ocr_name
                 )
 
             if card is None:
@@ -52,23 +52,11 @@ class ProcessingWorker(QObject):
                 return
 
             self.last_card_id = card["id"]
-            print("✅ Card added to collection:", card["name"])
+            print("✅ Card found:", card["name"])
 
-            image_url = card["image_uris"]["normal"]
-            card_image = ProcessingWorker.download_image(image_url) if image_url else None
-            self.card_ready.emit(card, card_image)
+            self.card_ready.emit(card)
         finally:
             self.scan_controller.mark_done()
-            
-    
-    def download_image(url: str) -> bytes | None:
-        try:
-            r = requests.get(url, timeout=10)
-            r.raise_for_status()
-            return r.content
-        except Exception as e:
-            print("Image download failed:", e)
-            return None
 
 
     def run(self):

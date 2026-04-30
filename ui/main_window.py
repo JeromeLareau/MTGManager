@@ -8,10 +8,13 @@ from ui.collection_page import CollectionPage
 from ui.menu_page import MenuPage
 from ui.navigation_pages import NavigationPages
 from ui.scan_page import ScanPage
+from workers.download_manager import DownloadManager
 
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("MTG Manager")
+        self.download_manager = DownloadManager()
         
         # Hamburger menu
         self.btn_menu = QPushButton("☰")
@@ -42,7 +45,7 @@ class MainWindow(QWidget):
         # Pages
         self.stack = QStackedWidget()
         self.page_menu = MenuPage()
-        self.page_scan = ScanPage()
+        self.page_scan = ScanPage(self.download_manager)
         self.page_collection = CollectionPage()
 
         self.stack.addWidget(self.page_menu)

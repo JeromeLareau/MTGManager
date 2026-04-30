@@ -1,19 +1,27 @@
 import cv2
 
-from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QPushButton, QWidget, QVBoxLayout
+from PySide6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QLabel, QPushButton, QWidget, QVBoxLayout
 from PySide6.QtGui import QImage, QPixmap, Qt
 from PySide6.QtCore import QThread
 from db.database import add_card_to_collection
+from scanner.scryfall import ScryfallEndpoint, safe_scryfall_lookup
+from ui.quantity_widget import QuantityWidget
+from ui.toast import Toast
 from workers.camera_worker import CameraWorker
 from workers.processing_worker import ProcessingWorker
 from workers.scanner_controller import ScanController
 
 class ScanPage(QWidget):
-    def __init__(self):
+    def __init__(self, download_manager):
         super().__init__()
+        self.download_manager = download_manager
+        self.download_manager.image_downloaded.connect(self.on_image_downloaded)
+        
         self.setWindowTitle("MTG Manager")
         self.resize(1000, 700)
         self.current_card = None
+        self.qty = 1
+        self.prints = {}
 
         # Left side: camera preview
         self.camera_preview = QLabel("Camera")
@@ -30,14 +38,27 @@ class ScanPage(QWidget):
         self.card_image.setScaledContents(True)
 
         self.card_name = QLabel("No card")
+        self.card_name.setAlignment(Qt.AlignCenter)
+        self.card_name.setStyleSheet("font-size: 18px; font-weight: bold;")
         self.card_type = QLabel("")
-        self.card_set = QLabel("")
+        self.card_type.setAlignment(Qt.AlignCenter)
+        self.card_type.setStyleSheet("font-size: 14px;")
+        self.card_set = QComboBox()
+        self.card_set.currentIndexChanged.connect(self.set_current_print)
+        self.foil_checkbox = QCheckBox("Foil")
+        self.quantity_widget = QuantityWidget(self.qty)
+        self.quantity_widget.changed.connect(self.update_quantity)
+        
         self.add_button = QPushButton("Add to collection")
         self.add_button.clicked.connect(
-            lambda: add_card_to_collection(self.current_card['id'], 1)
+            lambda: self.add_card()
         )
 
         self.add_button.setEnabled(False)
+        
+        quantity_layout = QHBoxLayout()
+        quantity_layout.addWidget(self.quantity_widget)
+        quantity_layout.addWidget(self.foil_checkbox)
 
         right_layout = QVBoxLayout()
         right_layout.addWidget(self.card_image)
@@ -45,7 +66,9 @@ class ScanPage(QWidget):
         right_layout.addWidget(self.card_type)
         right_layout.addWidget(self.card_set)
         right_layout.addStretch()
+        right_layout.addLayout(quantity_layout)
         right_layout.addWidget(self.add_button)
+        right_layout.setAlignment(Qt.AlignCenter)
 
         # Main layout
         main_layout = QHBoxLayout()
@@ -79,18 +102,54 @@ class ScanPage(QWidget):
 
         self.camera_preview.setPixmap(QPixmap.fromImage(qt_image))
         
-    def display_card(self, card, image_data):
+    def display_card(self, card):
         self.card_name.setText(card['name'])
         self.card_type.setText(card['type_line'])
-        self.card_set.setText(card['set_name'])
         self.current_card = card
+        self.qty = 1
+        self.quantity_widget.set_value(self.qty)
+        self.foil_checkbox.setChecked(False)
         self.add_button.setEnabled(True)
         
-        if image_data:
+        self.prints.clear()
+        prints_uri = card.get("prints_search_uri")
+        prints = safe_scryfall_lookup(ScryfallEndpoint.URI, prints_uri)
+        for p in prints["data"]:
+            if p["object"] != "card":
+                continue
+            self.prints[f"{p['set_name']} - {p['set']}"] = p
+        self.card_set.clear()
+        self.card_set.addItems(self.prints.keys())
+        self.card_set.setCurrentText(f"{card['set_name']} - {card['set']}")
+        
+        self.download_manager.download(self.current_card['image_uris']['normal'])
+            
+    def update_quantity(self, delta):
+        new_value = max(1, self.qty + delta)
+        self.qty = new_value
+        self.quantity_widget.set_value(new_value)
+        
+    def set_current_print(self, index):
+        key = self.card_set.currentText()
+        if key in self.prints:
+            self.current_card = self.prints[key]
+            self.download_manager.download(self.current_card['image_uris']['normal'])
+    
+    def on_image_downloaded(self, url, data):
+        if data:
             pixmap = QPixmap()
-            pixmap.loadFromData(image_data)
+            pixmap.loadFromData(data)
             self.card_image.setPixmap(pixmap)
-
+        
+    def add_card(self):
+        if not self.current_card:
+            return
+        
+        card_id = self.current_card['id']
+        foil = self.foil_checkbox.isChecked()
+        add_card_to_collection(card_id, qty=self.qty, foil=foil)
+        foil_text = "foil " if foil else ""
+        Toast(self.window(), f"Added {self.qty}x {foil_text}{self.current_card['name']} to collection").show()
 
     def closeEvent(self, event):
         self.camera.stop()
